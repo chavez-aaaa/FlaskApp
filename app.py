@@ -2,6 +2,7 @@ from flask import jsonify
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import (
+    get_jwt,
     JWTManager,
     create_access_token,
     jwt_required,
@@ -58,10 +59,14 @@ def usuarios():
     return render_template('usuarios.html', usuarios=usuarios)
 
 @app.route('/usuarios/nuevo')
+@login_required
+@admin_required
 def nuevo_usuario():
     return render_template('usuarios_form.html', usuario=None)
 
 @app.route('/usuarios/guardar', methods=['POST'])
+@login_required
+@admin_required
 def guardar_usuario():
     nombre = request.form['nombre']
     email = request.form['email']
@@ -75,6 +80,7 @@ def guardar_usuario():
     return redirect('/usuarios')
 
 @app.route('/usuarios/editar/<int:id>')
+@login_required
 def editar_usuario(id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -83,6 +89,7 @@ def editar_usuario(id):
     return render_template('usuarios_form.html', usuario=usuario)
 
 @app.route('/usuarios/actualizar/<int:id>', methods=['POST'])
+@login_required
 def actualizar_usuario(id):
     nombre = request.form['nombre']
     email = request.form['email']
@@ -96,6 +103,8 @@ def actualizar_usuario(id):
     return redirect('/usuarios')
 
 @app.route('/usuarios/eliminar/<int:id>')
+@login_required
+@admin_required
 def eliminar_usuario(id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -104,6 +113,7 @@ def eliminar_usuario(id):
     return redirect('/usuarios')
 
 @app.route('/inscripciones')
+@login_required
 def inscripciones():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -117,6 +127,7 @@ def inscripciones():
     return render_template('inscripciones.html', inscripciones=data)
 
 @app.route('/cursos')
+@login_required
 def cursos():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -131,6 +142,8 @@ def nuevo_curso():
     return render_template('cursos_form.html', curso=None)
 
 @app.route('/cursos/guardar', methods=['POST'])
+@login_required
+@admin_required
 def guardar_curso():
     nombre = request.form['nombre']
     descripcion = request.form['descripcion']
@@ -144,6 +157,8 @@ def guardar_curso():
     return redirect('/cursos')
 
 @app.route('/cursos/editar/<int:id>')
+@login_required
+@admin_required
 def editar_curso(id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -152,6 +167,8 @@ def editar_curso(id):
     return render_template('cursos_form.html', curso=curso)
 
 @app.route('/cursos/actualizar/<int:id>', methods=['POST'])
+@login_required
+@admin_required
 def actualizar_curso(id):
     nombre = request.form['nombre']
     descripcion = request.form['descripcion']
@@ -165,6 +182,8 @@ def actualizar_curso(id):
     return redirect('/cursos')
 
 @app.route('/cursos/eliminar/<int:id>')
+@login_required
+@admin_required
 def eliminar_curso(id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -173,6 +192,7 @@ def eliminar_curso(id):
     return redirect('/cursos')
 
 @app.route('/inscripciones/nueva/<int:id>')
+@login_required
 def nueva_inscripcion(id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -183,6 +203,7 @@ def nueva_inscripcion(id):
     return render_template('inscripciones_form.html', usuarios=usuarios, cursos=cursos)
 
 @app.route('/inscripciones/guardar', methods=['POST'])
+@login_required
 def guardar_inscripcion():
     usuario_id = request.form['usuario_id']
     curso_id = request.form['curso_id']
@@ -348,6 +369,7 @@ def api_crear_usuario():
     }), 201
 
 @app.route("/api/usuarios/<int:id>", methods=["PUT"])
+@jwt_required()
 def api_actualizar_usuario(id):
     data = request.get_json()
 
@@ -369,6 +391,7 @@ def api_actualizar_usuario(id):
     })
 
 @app.route("/api/usuarios/<int:id>", methods=["DELETE"])
+@jwt_required()
 def api_eliminar_usuario(id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -416,6 +439,7 @@ def api_obtener_curso(id):
     })
 
 @app.route("/api/cursos", methods=["POST"])
+@jwt_required()
 def api_crear_curso():
     data = request.get_json()
 
@@ -437,6 +461,7 @@ def api_crear_curso():
     }), 201
 
 @app.route("/api/cursos/<int:id>", methods=["PUT"])
+@jwt_required()
 def api_actualizar_curso(id):
     data = request.get_json()
 
@@ -458,6 +483,7 @@ def api_actualizar_curso(id):
     })
 
 @app.route("/api/cursos/<int:id>", methods=["DELETE"])
+@jwt_required()
 def api_eliminar_curso(id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -522,6 +548,7 @@ def api_obtener_inscripcion(id):
     })
 
 @app.route("/api/inscripciones", methods=["POST"])
+@jwt_required()
 def api_crear_inscripcion():
     data = request.get_json()
 
@@ -543,6 +570,7 @@ def api_crear_inscripcion():
     }), 201
 
 @app.route("/api/inscripciones/<int:id>", methods=["DELETE"])
+@jwt_required()
 def api_eliminar_inscripcion(id):
     conn = get_connection()
     cursor = conn.cursor()
@@ -575,10 +603,10 @@ def api_login():
     if not usuario or not bcrypt.check_password_hash(usuario["clave"], clave):
         return jsonify({"msg": "Credenciales incorrectas"}), 401
 
-    access_token = create_access_token(identity={
-        "id": usuario["id"],
-        "rol": usuario["rol"]
-    })
+    access_token = create_access_token(
+        identity=str(usuario["id"]),
+        additional_claims={"rol": usuario["rol"]}
+    )
 
     return jsonify(access_token=access_token)
 
@@ -619,7 +647,6 @@ def api_login():
 def api_listar_usuarios():
     current_user = get_jwt_identity()
     print(current_user)  # {'id': 1, 'rol': 'administrador'}
-
 
 if __name__ == '__main__':
     # Inicia el servidor de desarrollo
