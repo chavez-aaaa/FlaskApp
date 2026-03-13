@@ -10,8 +10,11 @@ from flask_jwt_extended import (
 )
 from functools import wraps
 from db import get_connection
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
+
 app.config["JWT_SECRET_KEY"] = "123456"
 jwt = JWTManager(app)
 app.secret_key = "clave_secreta_segura"
@@ -441,6 +444,13 @@ def api_obtener_curso(id):
 @app.route("/api/cursos", methods=["POST"])
 @jwt_required()
 def api_crear_curso():
+
+    claims = get_jwt()
+    if claims["rol"] != "administrador":
+        return jsonify({
+            "status": "error",
+            "message": "Solo el administrador puede crear cursos"
+        }), 403
     data = request.get_json()
 
     nombre = data.get("nombre")
@@ -463,6 +473,13 @@ def api_crear_curso():
 @app.route("/api/cursos/<int:id>", methods=["PUT"])
 @jwt_required()
 def api_actualizar_curso(id):
+
+    claims = get_jwt()
+    if claims["rol"] != "administrador":
+        return jsonify({
+            "status": "error",
+            "message": "Solo el administrador puede crear cursos"
+        }), 403
     data = request.get_json()
 
     nombre = data.get("nombre")
@@ -485,6 +502,14 @@ def api_actualizar_curso(id):
 @app.route("/api/cursos/<int:id>", methods=["DELETE"])
 @jwt_required()
 def api_eliminar_curso(id):
+
+    claims = get_jwt()
+    if claims["rol"] != "administrador":
+        return jsonify({
+            "status": "error",
+            "message": "Solo el administrador puede crear cursos"
+        }), 403
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM cursos WHERE id = %s", (id,))
@@ -550,6 +575,9 @@ def api_obtener_inscripcion(id):
 @app.route("/api/inscripciones", methods=["POST"])
 @jwt_required()
 def api_crear_inscripcion():
+
+
+
     data = request.get_json()
 
     usuario_id = data.get("usuario_id")
@@ -572,6 +600,14 @@ def api_crear_inscripcion():
 @app.route("/api/inscripciones/<int:id>", methods=["DELETE"])
 @jwt_required()
 def api_eliminar_inscripcion(id):
+
+    claims = get_jwt()
+    if claims["rol"] != "administrador":
+        return jsonify({
+            "status": "error",
+            "message": "Solo el administrador puede crear cursos"
+        }), 403
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM inscripciones WHERE id = %s", (id,))
@@ -642,11 +678,6 @@ def api_login():
 #     rol = claims["rol"]
 #     return jsonify(user_id=user_id, rol=rol)
 
-
-@jwt_required()
-def api_listar_usuarios():
-    current_user = get_jwt_identity()
-    print(current_user)  # {'id': 1, 'rol': 'administrador'}
 
 if __name__ == '__main__':
     # Inicia el servidor de desarrollo
